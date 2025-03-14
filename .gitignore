@@ -3,6 +3,13 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+#INI
+.ini
+
+#Personal / Generated data
+api_tokens/
+generated_data/
+
 # C extensions
 *.so
 
