@@ -178,17 +178,20 @@ def toggle_tickers(sender, app_data, user_data):
         add_to_plot(ticker)
     else:
         tickers_toggled.remove(ticker)
+        remove_from_plot(ticker)
 
 def add_to_plot(ticker):
     global ticker_data
     #for key, value in ticker_data.items():
     ages = pd.Series.to_list(ticker_data[ticker][0])
     prices = pd.Series.to_list(ticker_data[ticker][1])
-    dpg.add_line_series(x=ages, y=prices, parent="plot_y_axis", tag="test")
+    dpg.add_line_series(x=ages, y=prices, parent="plot_y_axis", tag=f"{ticker}_plot")
     dpg.fit_axis_data('plot_x_axis')
     dpg.fit_axis_data('plot_y_axis')
     print("added?")
 
+def remove_from_plot(ticker):
+    dpg.delete_item(f"{ticker}_plot")
 
 
 running = True
@@ -231,7 +234,7 @@ while running:
                     dpg.add_menu_item(label="Quit", callback=lambda : dpg.destroy_context())
                     
         with dpg.plot(label="Price History", height=-1, width=-1):
-            dpg.add_plot_axis(dpg.mvXAxis, label="x", tag = "plot_x_axis")          
+            dpg.add_plot_axis(dpg.mvXAxis, label="x", tag = "plot_x_axis", invert=True)          
             dpg.add_plot_axis(dpg.mvYAxis, label="y", tag = "plot_y_axis")
 
         
