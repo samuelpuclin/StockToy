@@ -158,13 +158,23 @@ def csv_to_plottable_all():
             if folder_age == ticker_data_age[key]:
                 df = pd.read_csv(os.path.join(os.getcwd(), "generated_data", f, f"{key}.csv"))
                 dates = df['date']
-                prices = df['close']
-                ages = dates.apply(date_to_age)
+                prices = pd.Series.to_list(df['close'])
+                split_factors = pd.Series.to_list(df['splitFactor'])
+                
+                ages = pd.Series.to_list(dates.apply(date_to_age))
+                prices = convert_split_factor(prices, split_factors)
+
                 plot_data = [ages, prices]
                 ticker_data.update({key : plot_data})
-    # for key, value in ticker_data.items() :
-    #     print (key, value)
 
+
+def convert_split_factor(prices, split_factors):
+
+    current_split = 1
+    for i in reversed(range(len(prices))):
+        prices[i] /= current_split
+        current_split *= split_factors[i]
+    return prices
 
 def date_to_age(date):
     return (datetime.today() - datetime.strptime(date, "%Y-%m-%d")).days
@@ -174,7 +184,6 @@ def toggle_tickers(sender, app_data, user_data):
     ticker = user_data
     if dpg.get_value(sender): #Checkbox ticked
         tickers_toggled.add(ticker)
-        print(ticker)
         add_to_plot(ticker)
     else:
         tickers_toggled.remove(ticker)
@@ -183,12 +192,11 @@ def toggle_tickers(sender, app_data, user_data):
 def add_to_plot(ticker):
     global ticker_data
     #for key, value in ticker_data.items():
-    ages = pd.Series.to_list(ticker_data[ticker][0])
-    prices = pd.Series.to_list(ticker_data[ticker][1])
+    ages = ticker_data[ticker][0]
+    prices = ticker_data[ticker][1]
     dpg.add_line_series(x=ages, y=prices, parent="plot_y_axis", tag=f"{ticker}_plot")
     dpg.fit_axis_data('plot_x_axis')
     dpg.fit_axis_data('plot_y_axis')
-    print("added?")
 
 def remove_from_plot(ticker):
     dpg.delete_item(f"{ticker}_plot")
@@ -234,8 +242,8 @@ while running:
                     dpg.add_menu_item(label="Quit", callback=lambda : dpg.destroy_context())
                     
         with dpg.plot(label="Price History", height=-1, width=-1):
-            dpg.add_plot_axis(dpg.mvXAxis, label="x", tag = "plot_x_axis", invert=True)          
-            dpg.add_plot_axis(dpg.mvYAxis, label="y", tag = "plot_y_axis")
+            dpg.add_plot_axis(dpg.mvXAxis, label="Days since today", tag = "plot_x_axis", invert=True)          
+            dpg.add_plot_axis(dpg.mvYAxis, label="Closing price (USD)", tag = "plot_y_axis")
 
         
 
