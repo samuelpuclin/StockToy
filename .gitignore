@@ -8,7 +8,7 @@ testing.py
 demo.py
 
 #INI
-.ini
+*.ini
 
 #Personal / Generated data
 api_tokens/
