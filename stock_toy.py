@@ -11,6 +11,10 @@ SCREEN_Y = size()[1]
 WIDTH = int(SCREEN_X * 0.75)
 HEIGHT = int(SCREEN_Y * 0.75)
 
+GREEN = [0,200,0,255]
+YELLOW = [200,200,0,255]
+RED = [200,0,0,255]
+
 init = "default.ini"
 tickers = {}
 
@@ -61,10 +65,8 @@ def create_tickers_menu(ticker_file):
         
         for line in lines:
             with dpg.group(parent="ticker_checkboxes", tag=line + "_group", horizontal=True):
-                dpg.add_checkbox(label=line,parent=line + "_group", callback=toggle_tickers)
-                dpg.add_text("Latest data available: ", parent=line + "_group", color=[200,200,0,255])
-
-
+                dpg.add_checkbox(parent=line + "_group", callback=toggle_tickers)
+                dpg.add_text(line,parent=line + "_group")
             #Update the tickers dict and by default set them all as no data
             tickers[line] = None
         #dpg.add_checkbox(label=f,parent=ticker_window)
@@ -81,7 +83,6 @@ def check_ticker_status():
 
             #Get data age in days
             age = (datetime.today() - datetime.strptime(d, "%Y-%m-%d")).days
-            print(age)
 
             files = os.listdir(dir_path)
             for f in files:
@@ -90,10 +91,31 @@ def check_ticker_status():
                     tickers[ticker] = age
                     test += 1
     
+    checkboxes_group_children = (dpg.get_item_children("ticker_checkboxes"))
+    ticker_ui_groups = checkboxes_group_children[1]
+
+    for t in ticker_ui_groups:
+        checkbox_text = dpg.get_item_children(t)[1][1]
+        text_value = dpg.get_value(dpg.get_item_children(t)[1][1])
+
+
+        #Colour the ticker name based on data recency
+        #Data taken today = Green
+        #Data but not today = Yellow
+        #No data = Red
+        if tickers[text_value] != None:
+
+            if tickers[text_value] == 0:
+                dpg.configure_item(checkbox_text, color=GREEN)
+            else:
+                dpg.configure_item(checkbox_text, color=YELLOW)
+        else:
+            dpg.configure_item(checkbox_text, color=RED)
+
     for t in tickers:
         print(f"{t} : {tickers[t]}")
 
-    
+
 
 def toggle_tickers(sender, app_data):
     global tickers
