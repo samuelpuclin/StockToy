@@ -1,6 +1,7 @@
 import dearpygui.dearpygui as dpg
 import dearpygui.demo as demo
 import os
+import pandas as pd
 from datetime import datetime
 from datetime import date
 from pyautogui import size
@@ -16,8 +17,11 @@ YELLOW = [200,200,0,255]
 RED = [200,0,0,255]
 
 init = "default.ini"
-tickers = {}
+ticker_data_age = {}
+tickers_toggled = set()
+tokens = []
 
+ticker_data = {}
 
 def load_init(sender, app_data):
     print(dpg.get_item_label(sender))
@@ -38,6 +42,12 @@ def get_ini_files():
     files = [f for f in os.listdir(os.getcwd()) if f[-4:] == ".ini"]
     return files
 
+def get_api_files():
+    token_folder_path = os.path.join(os.getcwd(), "api_tokens")
+    files = [f for f in os.listdir(token_folder_path) if f[-4:] == ".txt"]
+    print(files)
+    return files
+
 def create_layout_options_window():
     temp = dpg.add_window(pos=[WIDTH/2, HEIGHT/2])
     dpg.add_text("Load layout:", parent=temp)
@@ -46,6 +56,24 @@ def create_layout_options_window():
     for file in ini_files:
         dpg.add_button(parent=temp, label=file, callback=load_init)
 
+def create_api_token_options_window():
+    temp = dpg.add_window(pos=[WIDTH/2, HEIGHT/2])
+
+    global tokens
+
+    files = get_api_files()
+    for file in files:
+        with open(os.path.join(os.getcwd(), "api_tokens", file), 'r') as f:
+            tokens_temp = [line.rstrip() for line in f]
+            tokens.extend(tokens_temp)
+            tokens = list(dict.fromkeys(tokens))
+
+    dpg.add_text("Choose API token: ", parent=temp)
+    dpg.add_separator(parent=temp)
+
+    #delete before remaking so no conflicting ids
+    dpg.delete_item("selected_token")
+    dpg.add_combo(tokens,fit_width=True, tag="selected_token",parent=temp)
 
 def create_tickers_menu(ticker_file):
     if ticker_file != "":
@@ -63,17 +91,17 @@ def create_tickers_menu(ticker_file):
         dpg.delete_item("ticker_checkboxes")
         dpg.add_group(parent="ticker_window", tag="ticker_checkboxes")
         
-        for line in lines:
-            with dpg.group(parent="ticker_checkboxes", tag=line + "_group", horizontal=True):
-                dpg.add_checkbox(parent=line + "_group", callback=toggle_tickers)
-                dpg.add_text(line,parent=line + "_group")
+        for ticker in lines:
+            with dpg.group(parent="ticker_checkboxes", tag=ticker + "_group", horizontal=True):
+                dpg.add_checkbox(parent=ticker + "_group", callback=toggle_tickers, user_data=ticker)
+                dpg.add_text(ticker,parent=ticker + "_group", tag=ticker + "_text")
             #Update the tickers dict and by default set them all as no data
-            tickers[line] = None
+            ticker_data_age[ticker] = None
         #dpg.add_checkbox(label=f,parent=ticker_window)
 
 def check_ticker_status():
 
-    global tickers
+    global ticker_data_age
     test = 0
     data_path = os.path.join(os.getcwd(), "generated_data")
     directories = os.listdir(data_path)
@@ -88,7 +116,7 @@ def check_ticker_status():
             for f in files:
                 if f[-4:] == ".csv":
                     ticker = f[:-4]
-                    tickers[ticker] = age
+                    ticker_data_age[ticker] = age
                     test += 1
     
     checkboxes_group_children = (dpg.get_item_children("ticker_checkboxes"))
@@ -103,27 +131,65 @@ def check_ticker_status():
         #Data taken today = Green
         #Data but not today = Yellow
         #No data = Red
-        if tickers[text_value] != None:
+        if ticker_data_age[text_value] != None:
 
-            if tickers[text_value] == 0:
+            if ticker_data_age[text_value] == 0:
                 dpg.configure_item(checkbox_text, color=GREEN)
             else:
                 dpg.configure_item(checkbox_text, color=YELLOW)
         else:
             dpg.configure_item(checkbox_text, color=RED)
 
-    for t in tickers:
-        print(f"{t} : {tickers[t]}")
+    for t in ticker_data_age:
+        print(f"{t} : {ticker_data_age[t]}")
+
+    csv_to_plottable_all()
+    
+
+def csv_to_plottable_all():
+
+    global ticker_data
+
+    folders = [f for f in os.listdir(os.path.join(os.getcwd(), "generated_data")) if os.path.isdir(os.path.join(os.getcwd(), "generated_data", f))]
+
+    for key in ticker_data_age:
+        for f in folders:
+            folder_age = (datetime.today() - datetime.strptime(f, "%Y-%m-%d")).days
+            if folder_age == ticker_data_age[key]:
+                df = pd.read_csv(os.path.join(os.getcwd(), "generated_data", f, f"{key}.csv"))
+                dates = df['date']
+                prices = df['close']
+                ages = dates.apply(date_to_age)
+                plot_data = [ages, prices]
+                ticker_data.update({key : plot_data})
+    # for key, value in ticker_data.items() :
+    #     print (key, value)
 
 
+def date_to_age(date):
+    return (datetime.today() - datetime.strptime(date, "%Y-%m-%d")).days
 
-def toggle_tickers(sender, app_data):
-    global tickers
-    ticker = dpg.get_item_label(sender)
+def toggle_tickers(sender, app_data, user_data):
+    global tickers_toggled
+    ticker = user_data
     if dpg.get_value(sender): #Checkbox ticked
-        tickers.update(ticker)
+        tickers_toggled.add(ticker)
+        print(ticker)
+        add_to_plot(ticker)
     else:
-        tickers.remove(ticker)
+        tickers_toggled.remove(ticker)
+
+def add_to_plot(ticker):
+    global ticker_data
+    #for key, value in ticker_data.items():
+    ages = pd.Series.to_list(ticker_data[ticker][0])
+    prices = pd.Series.to_list(ticker_data[ticker][1])
+    dpg.add_line_series(x=ages, y=prices, parent="plot_y_axis", tag="test")
+    dpg.fit_axis_data('plot_x_axis')
+    dpg.fit_axis_data('plot_y_axis')
+    print("added?")
+
+
 
 running = True
 
@@ -161,13 +227,13 @@ while running:
 
                     dpg.add_menu_item(label="Save Layout", callback=lambda : dpg.configure_item("save_ini_popup", show=True))
                     dpg.add_menu_item(label="Load Layout", callback=lambda : create_layout_options_window())
+                    dpg.add_menu_item(label="Configure API Tokens", callback=lambda : create_api_token_options_window())
                     dpg.add_menu_item(label="Quit", callback=lambda : dpg.destroy_context())
                     
         with dpg.plot(label="Price History", height=-1, width=-1):
-            dpg.add_plot_axis(dpg.mvXAxis, label="x")          
-            with dpg.plot_axis(dpg.mvYAxis, label="y"):
-                #dpg.add_line_series(x,y)
-                pass
+            dpg.add_plot_axis(dpg.mvXAxis, label="x", tag = "plot_x_axis")          
+            dpg.add_plot_axis(dpg.mvYAxis, label="y", tag = "plot_y_axis")
+
         
 
 
