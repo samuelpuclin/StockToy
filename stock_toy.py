@@ -39,9 +39,11 @@ def save_ini(sender, app_data, user_data):
     if filename[-4:] == ".ini":
         dpg.configure_item("save_ini_popup", show=False)
         dpg.save_init_file(filename)
+        log_message(f"Saved configuration as {filename}")
     else:
         dpg.configure_item("invalid_filename_popup", show=True)
         print(dpg.get_item_configuration("invalid_filename_popup"))
+
 
 def get_ini_files():
     files = [f for f in os.listdir(os.getcwd()) if f[-4:] == ".ini"]
@@ -81,6 +83,7 @@ def create_api_token_options_window():
     dpg.add_combo(tokens,fit_width=True, tag="selected_token",parent=temp)
 
 def create_tickers_menu(ticker_file):
+    tickers_counted = 0
     if ticker_file != "":
         dpg.hide_item("disabled_request_tooltip")
         dpg.hide_item("disabled_check_tooltip")
@@ -102,15 +105,20 @@ def create_tickers_menu(ticker_file):
                 dpg.add_text(ticker,parent=ticker + "_group", tag=ticker + "_text")
             #Update the tickers dict and by default set them all as no data
             ticker_data_age[ticker] = None
-        #dpg.add_checkbox(label=f,parent=ticker_window)
+            tickers_counted += 1
 
+        #dpg.add_checkbox(label=f,parent=ticker_window)
+    log_message(f"Found {tickers_counted} tickers in {ticker_file}")
     check_ticker_status()
 
 
 def simulate_price_change(tickers, sim_number, sim_iterations):
 
+    method = "random"
+    ticker_count = len(tickers)
+    log_message(f"Starting price forecasting {ticker_count} tickers...")
     for ticker in tickers:
-
+        log_message(f"Forecasting price for {ticker}...")
         #Remove previous plot from previous simulation run if exists
         try:
             remove_plot_simulated_all(ticker)
@@ -125,15 +133,11 @@ def simulate_price_change(tickers, sim_number, sim_iterations):
         sim_iterations = int(sim_iterations)
 
         for i in range(sim_number):
+            
             try:
                 simulated_ages = ticker_data_simulated[ticker][i][0]
                 simulated_prices = ticker_data_simulated[ticker][i][1]
             except Exception as e:
-
-                try:
-                    print(f"Before: {ticker_data_simulated[ticker].keys()}")
-                except:
-                    pass
                 
                 if i == 0:
                     ticker_data_simulated[ticker] = {} 
@@ -163,6 +167,8 @@ def simulate_price_change(tickers, sim_number, sim_iterations):
 
         #print(ticker_data_simulated[ticker])
 
+    log_message(f"Finished price forecasting for {ticker_count} tickers")
+
 def plot_simulated_all(ticker):
     global ticker_data_simulated
 
@@ -173,9 +179,10 @@ def plot_simulated_all(ticker):
     except:
         pass
 def remove_plot_simulated_all(ticker):
-    for sim_number in ticker_data_simulated[ticker]:
-        print(sim_number)
-        dpg.delete_item(f"{ticker}_plot_simulated_{sim_number}")
+    # for sim_number in ticker_data_simulated[ticker]:
+    #     print(sim_number)
+    #     dpg.delete_item(f"{ticker}_plot_simulated_{sim_number}")
+    pass
 
 def plot_simulated(ticker, sim_number):
     
@@ -190,6 +197,11 @@ def plot_simulated(ticker, sim_number):
     # dpg.fit_axis_data('plot_y_axis')
 
 def check_ticker_status():
+
+    old = 0
+    new = 0
+    none = 0
+
 
     global ticker_data_age
     test = 0
@@ -225,13 +237,20 @@ def check_ticker_status():
 
             if ticker_data_age[text_value] == 0:
                 dpg.configure_item(checkbox_text, color=GREEN)
+                new += 1
             else:
                 dpg.configure_item(checkbox_text, color=YELLOW)
+                old += 1
         else:
             dpg.configure_item(checkbox_text, color=RED)
+            none += 1
 
     for t in ticker_data_age:
         print(f"{t} : {ticker_data_age[t]}")
+    log_message(f"Found the following data:")
+    log_message(f"Current: {new}")
+    log_message(f"Old: {old}")
+    log_message(f"None: {none}")
 
     csv_to_plottable_all()
     
@@ -239,23 +258,38 @@ def check_ticker_status():
 def csv_to_plottable_all():
 
     global ticker_data
+    loaded = 0
+
+    log_message(f"Searching for generated data folders...")
 
     folders = [f for f in os.listdir(os.path.join(os.getcwd(), "generated_data")) if os.path.isdir(os.path.join(os.getcwd(), "generated_data", f))]
 
-    for key in ticker_data_age:
-        for f in folders:
-            folder_age = (datetime.today() - datetime.strptime(f, "%Y-%m-%d")).days
-            if folder_age == ticker_data_age[key]:
-                df = pd.read_csv(os.path.join(os.getcwd(), "generated_data", f, f"{key}.csv"))
-                dates = df['date']
-                prices = pd.Series.to_list(df['close'])
-                split_factors = pd.Series.to_list(df['splitFactor'])
-                
-                ages = pd.Series.to_list(dates.apply(date_to_age))
-                prices = convert_split_factor(prices, split_factors)
+    if len(folders) > 0:
+        log_message(f"Found generated data for {len(folders)} different days")
+        log_message(f"Loading data from csv files...")
+        for key in ticker_data_age:
+            for f in folders:
+                folder_age = (datetime.today() - datetime.strptime(f, "%Y-%m-%d")).days
+                if folder_age == ticker_data_age[key]:
+                    df = pd.read_csv(os.path.join(os.getcwd(), "generated_data", f, f"{key}.csv"))
+                    dates = df['date']
+                    prices = pd.Series.to_list(df['close'])
+                    split_factors = pd.Series.to_list(df['splitFactor'])
+                    
+                    ages = pd.Series.to_list(dates.apply(date_to_age))
+                    prices = convert_split_factor(prices, split_factors)
 
-                plot_data = [ages, prices]
-                ticker_data.update({key : plot_data})
+                    plot_data = [ages, prices]
+                    ticker_data.update({key : plot_data})
+                    loaded += 1
+
+
+        log_message(f"Loaded data for {loaded} tickers")
+
+    else:
+        log_message("No generated data was found")
+    
+    
 
 
 def convert_split_factor(prices, split_factors):
@@ -287,22 +321,26 @@ def toggle_tickers(sender, app_data, user_data):
 
 def add_to_plot(ticker):
     global ticker_data
-    #for key, value in ticker_data.items():
-    ages = ticker_data[ticker][0]
-    prices = ticker_data[ticker][1]
-    dpg.add_line_series(x=ages, y=prices, parent="plot_y_axis", tag=f"{ticker}_plot")
-    dpg.fit_axis_data('plot_x_axis')
-    dpg.fit_axis_data('plot_y_axis')
+    
 
-    plot_simulated_all(ticker)
+    try:
+        ages = ticker_data[ticker][0]
+        prices = ticker_data[ticker][1]
+        dpg.add_line_series(x=ages, y=prices, parent="plot_y_axis", tag=f"{ticker}_plot")
+        dpg.fit_axis_data('plot_x_axis')
+        dpg.fit_axis_data('plot_y_axis')
+        plot_simulated_all(ticker)
+        log_message(f"Displaying price history for {ticker}")
+    except:
+        log_message(f"Error displaying price history for {ticker}")
 
 def remove_from_plot(ticker):
     dpg.delete_item(f"{ticker}_plot")
-
-
     remove_plot_simulated_all(ticker)
+    log_message(f"Hiding price history for {ticker}")
     
-
+def now():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 def floor_text_whole_number(sender, app_data, user_data):
     try:
@@ -312,6 +350,15 @@ def floor_text_whole_number(sender, app_data, user_data):
         dpg.set_value(sender, floored_string)
     except:
         dpg.set_value(sender, '0')
+
+def log_message(message):
+    dpg.add_text(f"{now()}: " + message, parent="log_window")
+    scroll_to_window_bottom("log_window")
+
+def scroll_to_window_bottom(window_tag):
+    dpg.set_y_scroll(item=window_tag, value = dpg.get_y_scroll_max(window_tag) + 100.0)
+
+
 running = True
 
 while running:
@@ -355,8 +402,13 @@ while running:
             dpg.add_plot_axis(dpg.mvXAxis, label="Days since today", tag = "plot_x_axis", invert=True)          
             dpg.add_plot_axis(dpg.mvYAxis, label="Closing price (USD)", tag = "plot_y_axis")
 
-        
-
+    
+    with dpg.window(no_collapse=True,
+                    no_title_bar=True,
+                    no_close=True,
+                    tag="log_window",
+                    label="Logger") as log_window:
+        pass
 
     with dpg.window(no_collapse=True,
                     no_close=True,
@@ -413,6 +465,6 @@ while running:
     dpg.show_viewport()
 
     dpg.set_primary_window("main_window", True)
-
+    log_message(f"Successfully started StockToy")
     dpg.start_dearpygui()
     dpg.destroy_context()
