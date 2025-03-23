@@ -337,11 +337,18 @@ def add_to_plot(ticker):
     
 
     try:
+
+
+
+
         ages = ticker_data[ticker][0]
         prices = ticker_data[ticker][1]
         dpg.add_line_series(x=ages, y=prices, parent="plot_y_axis", tag=f"{ticker}_plot")
         dpg.fit_axis_data('plot_x_axis')
         dpg.fit_axis_data('plot_y_axis')
+
+        dpg.bind_item_theme(f"{ticker}_plot", plot_theme)
+
         plot_simulated_all(ticker)
         log_message(f"Displaying price history for {ticker}")
     except:
@@ -455,15 +462,14 @@ def request_ticker_historical(ticker, token):
         log_message(f"{response.text}")
         return 1
 
+
+
+
 running = True
 
 while running:
     
     dpg.create_context()
-    
-    dpg.create_viewport(x_pos=int(SCREEN_X * 0.125), y_pos=int(SCREEN_Y * 0.125),title='StockToy', width=WIDTH, height=HEIGHT, decorated=True)
-
-
 
     with dpg.theme() as disabled_theme:
         with dpg.theme_component(dpg.mvButton, enabled_state=False):
@@ -471,6 +477,13 @@ while running:
             dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (30, 30, 30, 255))  # Same as button
             dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (30, 30, 30, 255))  # No change
             dpg.add_theme_color(dpg.mvThemeCol_Text, (70, 70, 70, 255))
+
+
+    with dpg.theme() as plot_theme:
+            with dpg.theme_component(dpg.mvLineSeries):
+                dpg.add_theme_color(dpg.mvPlotCol_Line, (125, 145, 160), category=dpg.mvThemeCat_Plots)
+
+    dpg.create_viewport(x_pos=int(SCREEN_X * 0.125), y_pos=int(SCREEN_Y * 0.125),title='StockToy', width=WIDTH, height=HEIGHT, decorated=True)
 
 
 
@@ -506,15 +519,41 @@ while running:
 
     with dpg.window(no_collapse=True,
                     no_close=True,
-                    label='Simulation Settings',
                     tag="simulation_settings_window") as simulation_settings_window:
-        dpg.add_checkbox(label="Enable Simulation", callback=toggle_item, user_data="simulation_settings")
+        dpg.add_checkbox(label="Enable Simulation", callback=toggle_item, user_data="forecasting_settings")
         dpg.add_separator()
-        with dpg.group(tag="simulation_settings", enabled=False):
-            dpg.add_button(label="Start simulation", callback=lambda : simulate_price_change(tickers_toggled, dpg.get_value("simulation_count_textbox"), dpg.get_value("simulation_length_textbox")))
-            dpg.add_input_text(label="Simulation length (days)", tag = "simulation_length_textbox", decimal=True, callback=floor_text_whole_number)
-            dpg.add_input_text(label="Simulation count", tag = "simulation_count_textbox", decimal=True, callback=floor_text_whole_number)
-            dpg.bind_item_theme("simulation_settings", disabled_theme)
+
+        dpg.add_separator()
+        with dpg.group(tag="metrics_settings", enabled=False):
+            dpg.add_text("Metrics")
+            dpg.add_separator()
+            dpg.add_button(label="Calculated metrics")
+            dpg.add_checkbox(label="temp")
+            dpg.add_checkbox(label="temp")
+            dpg.add_checkbox(label="temp")
+            dpg.add_checkbox(label="temp")
+
+
+        dpg.add_separator()
+        with dpg.group(tag="predictions_settings", enabled=False):
+            dpg.add_text("Predictions")
+            dpg.add_separator()
+            dpg.add_button(label="Predict prices")
+            dpg.add_checkbox(label="temp")
+            dpg.add_checkbox(label="temp")
+            dpg.add_checkbox(label="temp")
+            dpg.add_checkbox(label="temp")
+
+        dpg.add_separator()
+        with dpg.group(tag="forecasting_settings", enabled=False):
+            dpg.add_text("Forecasting")
+            dpg.add_separator()
+            dpg.add_button(label="Start forecasting", callback=lambda : simulate_price_change(tickers_toggled, dpg.get_value("forecasting_count_textbox"), dpg.get_value("forecasting_length_textbox")))
+            dpg.add_combo(label="Forecasting method")
+            dpg.add_input_text(label="Forecasting length (days)", tag = "forecasting_length_textbox", decimal=True, callback=floor_text_whole_number)
+            dpg.add_input_text(label="Forecasting count", tag = "forecasting_count_textbox", decimal=True, callback=floor_text_whole_number)
+            dpg.bind_item_theme("forecasting_settings", disabled_theme)
+
 
     with dpg.window(no_collapse=True,
                     no_close=True,
