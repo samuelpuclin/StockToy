@@ -21,7 +21,7 @@ RED = [200,0,0,255]
 init = "default.ini"
 ticker_data_age = {}
 tickers_toggled = set()
-tokens = []
+tokens = {}
 
 ticker_data = {}
 ticker_data_simulated = {} #nested dict, one dict for each sim
@@ -61,8 +61,7 @@ def create_layout_options_window():
     for file in ini_files:
         dpg.add_button(parent=temp, label=file, callback=load_init)
 
-def create_api_token_options_window():
-    temp = dpg.add_window(pos=[WIDTH/2, HEIGHT/2])
+def load_tokens():
 
     global tokens
 
@@ -70,15 +69,9 @@ def create_api_token_options_window():
     for file in files:
         with open(os.path.join(os.getcwd(), "api_tokens", file), 'r') as f:
             tokens_temp = [line.rstrip() for line in f]
-            tokens.extend(tokens_temp)
-            tokens = list(dict.fromkeys(tokens))
-
-    dpg.add_text("Choose API token: ", parent=temp)
-    dpg.add_separator(parent=temp)
-
-    #delete before remaking so no conflicting ids
-    dpg.delete_item("selected_token")
-    dpg.add_combo(tokens,fit_width=True, tag="selected_token",parent=temp)
+            for t in tokens_temp:
+                tokens[t] = True
+    log_message(f"Found {len(tokens)} token(s)")
 
 def create_tickers_menu(ticker_file):
     tickers_counted = 0
@@ -111,7 +104,7 @@ def simulate_price_change(tickers, sim_number, sim_iterations):
 
     method = "random"
     ticker_count = len(tickers)
-    log_message(f"Starting price forecasting {ticker_count} tickers...")
+    log_message(f"Starting price forecasting for {ticker_count} ticker(s)...")
     for ticker in tickers:
         log_message(f"Forecasting price for {ticker}...")
         #Remove previous plot from previous simulation run if exists
@@ -390,7 +383,6 @@ while running:
 
                     dpg.add_menu_item(label="Save Layout", callback=lambda : dpg.configure_item("save_ini_popup", show=True))
                     dpg.add_menu_item(label="Load Layout", callback=lambda : create_layout_options_window())
-                    dpg.add_menu_item(label="Configure API Tokens", callback=lambda : create_api_token_options_window())
                     dpg.add_menu_item(label="Quit", callback=lambda : dpg.destroy_context())
                     
         with dpg.plot(label="Price History", height=-1, width=-1):
@@ -457,5 +449,7 @@ while running:
 
     dpg.set_primary_window("main_window", True)
     log_message(f"Successfully started StockToy")
+    load_tokens()
+
     dpg.start_dearpygui()
     dpg.destroy_context()
