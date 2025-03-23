@@ -11,7 +11,7 @@ MIN_SIZE = 5192 #Any responses under this size (in bytes) will be considered an 
 # def generic_request(request):
 #     return requests.get(request, headers=headers)
 
-def request_historical(ticker, token):
+def request_ticker_historical(ticker, token):
     """
     Get historical data for ticker
     Output as csv
@@ -133,7 +133,7 @@ def request_daily_data(list_txt, limit):
                 ticker = split_line[0][:-1]
 
             if ticker not in completed_tickers:
-                exit_code = request_historical(ticker)
+                exit_code = request_ticker_historical(ticker)
                 if exit_code > 0:
                     break
                 else:

@@ -1,15 +1,22 @@
 import dearpygui.dearpygui as dpg
 import dearpygui.demo as demo
+import requests
 import os
 import pandas as pd
 import numpy as np
 import math
 from datetime import datetime
+from datetime import date
 from pyautogui import size
 import random
 
+
 SCREEN_X = size()[0]
 SCREEN_Y = size()[1]
+
+GENERATED_DATA_PATH = "generated_data"
+TICKERS_LIST_FOLDER = "tickers"
+MIN_SIZE = 5192 #Any responses under this size (in bytes) will be considered an error message
 
 WIDTH = int(SCREEN_X * 0.75)
 HEIGHT = int(SCREEN_Y * 0.75)
@@ -18,16 +25,21 @@ GREEN = [0,200,0,255]
 YELLOW = [200,200,0,255]
 RED = [200,0,0,255]
 
+TODAY  = str(date.today())
+
 init = "default.ini"
 ticker_data_age = {}
 tickers_toggled = set()
-tokens = {}
+tokens = []
+
+loading = False
 
 ticker_data = {}
 ticker_data_simulated = {} #nested dict, one dict for each sim
 
+tickers_file = ""
+
 def load_init(sender, app_data):
-    print(dpg.get_item_label(sender))
     global init
     init = dpg.get_item_label(sender)
     dpg.stop_dearpygui()
@@ -40,7 +52,6 @@ def save_ini(sender, app_data, user_data):
         log_message(f"Saved configuration as {filename}")
     else:
         dpg.configure_item("invalid_filename_popup", show=True)
-        print(dpg.get_item_configuration("invalid_filename_popup"))
 
 
 def get_ini_files():
@@ -50,7 +61,6 @@ def get_ini_files():
 def get_api_files():
     token_folder_path = os.path.join(os.getcwd(), "api_tokens")
     files = [f for f in os.listdir(token_folder_path) if f[-4:] == ".txt"]
-    print(files)
     return files
 
 def create_layout_options_window():
@@ -69,8 +79,7 @@ def load_tokens():
     for file in files:
         with open(os.path.join(os.getcwd(), "api_tokens", file), 'r') as f:
             tokens_temp = [line.rstrip() for line in f]
-            for t in tokens_temp:
-                tokens[t] = True
+            tokens.extend(tokens_temp)
     log_message(f"Found {len(tokens)} token(s)")
 
 def create_tickers_menu(ticker_file):
@@ -85,7 +94,8 @@ def create_tickers_menu(ticker_file):
                 dpg.configure_item("request_data_button", enabled=False)
 
         dpg.delete_item("ticker_checkboxes")
-        dpg.add_group(parent="ticker_window", tag="ticker_checkboxes")
+        dpg.add_group(parent="ticker_window", tag="ticker_checkboxes", enabled = False)
+        dpg.bind_item_theme("ticker_checkboxes", disabled_theme)
         
         for ticker in lines:
             with dpg.group(parent="ticker_checkboxes", tag=ticker + "_group", horizontal=True):
@@ -97,7 +107,7 @@ def create_tickers_menu(ticker_file):
 
         #dpg.add_checkbox(label=f,parent=ticker_window)
     log_message(f"Found {tickers_counted} tickers in {ticker_file}")
-    check_ticker_status()
+    check_all_tickers_status()
 
 
 def simulate_price_change(tickers, sim_number, sim_iterations):
@@ -130,7 +140,6 @@ def simulate_price_change(tickers, sim_number, sim_iterations):
                 if i == 0:
                     ticker_data_simulated[ticker] = {} 
                 ticker_data_simulated[ticker][i] = [[ticker_data[ticker][0][-1]], [ticker_data[ticker][1][-1]]]
-                print(f"After: {ticker_data_simulated[ticker].keys()}")
                 simulated_ages = ticker_data_simulated[ticker][i][0]
                 simulated_prices = ticker_data_simulated[ticker][i][1]
 
@@ -153,8 +162,6 @@ def simulate_price_change(tickers, sim_number, sim_iterations):
 
                 plot_simulated(ticker, i)
 
-        #print(ticker_data_simulated[ticker])
-
     log_message(f"Finished price forecasting for {ticker_count} tickers")
 
 def plot_simulated_all(ticker):
@@ -172,6 +179,20 @@ def remove_plot_simulated_all(ticker):
     #     dpg.delete_item(f"{ticker}_plot_simulated_{sim_number}")
     pass
 
+def set_loading(bool):
+    global loading
+    loading = bool
+
+    if loading:
+        dpg.configure_item("ticker_checkboxes", enabled = False)
+    else:
+        dpg.configure_item("ticker_checkboxes", enabled = True)
+
+def update_tickers_file(new_file_path):
+    global tickers_file
+    tickers_file = new_file_path
+    log_message(f"Using ticker file {tickers_file}")
+
 def plot_simulated(ticker, sim_number):
     
     ages = ticker_data_simulated[ticker][sim_number][0]
@@ -184,7 +205,7 @@ def plot_simulated(ticker, sim_number):
     # dpg.fit_axis_data('plot_x_axis')
     # dpg.fit_axis_data('plot_y_axis')
 
-def check_ticker_status():
+def check_all_tickers_status():
 
     old = 0
     new = 0
@@ -192,6 +213,8 @@ def check_ticker_status():
 
 
     global ticker_data_age
+
+
     test = 0
     data_path = os.path.join(os.getcwd(), "generated_data")
     directories = os.listdir(data_path)
@@ -203,6 +226,7 @@ def check_ticker_status():
             age = (datetime.today() - datetime.strptime(d, "%Y-%m-%d")).days
 
             files = os.listdir(dir_path)
+
             for f in files:
                 if f[-4:] == ".csv":
                     ticker = f[:-4]
@@ -233,8 +257,6 @@ def check_ticker_status():
             dpg.configure_item(checkbox_text, color=RED)
             none += 1
 
-    for t in ticker_data_age:
-        print(f"{t} : {ticker_data_age[t]}")
     log_message(f"Found the following data:")
     log_message(f"Current: {new}")
     log_message(f"Old: {old}")
@@ -255,6 +277,7 @@ def csv_to_plottable_all():
     if len(folders) > 0:
         log_message(f"Found generated data for {len(folders)} different days")
         log_message(f"Loading data from csv files...")
+        set_loading(True)
         for key in ticker_data_age:
             for f in folders:
                 folder_age = (datetime.today() - datetime.strptime(f, "%Y-%m-%d")).days
@@ -272,10 +295,12 @@ def csv_to_plottable_all():
                     loaded += 1
 
 
-        log_message(f"Loaded data for {loaded} tickers")
+        log_message(f"Finished loading data for {loaded} tickers")
 
     else:
         log_message("No generated data was found")
+
+    set_loading(False)
     
     
 
@@ -346,11 +371,93 @@ def log_message(message):
 def scroll_to_window_bottom(window_tag):
     dpg.set_y_scroll(item=window_tag, value = dpg.get_y_scroll_max(window_tag) + 100.0)
 
+def request_data(list_txt_path):
+    list_txt_path = os.path.join(os.getcwd(), TICKERS_LIST_FOLDER, list_txt_path)
+    completed_tickers = []
+    total_tickers = 0
+
+    try:
+        csv_files = os.listdir(os.path.join(os.getcwd(), GENERATED_DATA_PATH, TODAY))
+        for f in csv_files:
+            if f[-4:] == ".csv":
+                completed_tickers.append(f[:-4])
+
+    except:
+        log_message(f"No data found for {TODAY}")
+    
+    if len(completed_tickers) != 0:
+        log_message(f"{TODAY} data already found for {len(completed_tickers)} tickers")
+
+    token_index = 0 #Keep track of which token we are using, use next token when limit has been reached for current token
+    with open(list_txt_path, 'r') as f2:
+
+        token = tokens[token_index]
+
+        lines = f2.readlines()
+        total_tickers = len(lines)
+
+        log_message(f"Beginning historical data retrieval for {len(lines) - len(completed_tickers)} tickers...")
+        log_message(f"Using token {token}")
+        i = 0
+        while i < (len(lines)):
+            
+            exit_code = 0
+            ticker = lines[i].rstrip()
+            print(ticker)
+            if ticker not in completed_tickers:
+                exit_code = request_ticker_historical(ticker, token)
+                if exit_code > 0:
+                    token_index += 1
+                    if token_index >= len(tokens):
+                        log_message("Expended all tokens. Try again later")
+                        break
+                    else:
+                        token = tokens[token_index]
+                        log_message(f"Using token {token}")
+                        continue
+                else:
+                    completed_tickers.append(ticker)
+                    i += 1
+            else:
+                log_message(f"Up-to-date data already found for {ticker}, skipping...")
+                i += 1
+
+    log_message(f"{len(completed_tickers)}/{total_tickers} tickers completed")
+    check_all_tickers_status()
+
+
+def request_ticker_historical(ticker, token):
+    """
+    Get historical data for ticker
+    Output as csv
+
+    return: 0 success 1 fail
+    """
+    headers = {
+    'Content-Type': 'application/json',
+    'Authorization' : 'Token ' + token
+    }
+
+    current_path = os.getcwd()
+    if not os.path.exists(f"{current_path}/{GENERATED_DATA_PATH}/{TODAY}"):
+        os.makedirs(f"{current_path}/{GENERATED_DATA_PATH}/{TODAY}")
+
+    response = requests.get(f"https://api.tiingo.com/tiingo/daily/{ticker}/prices?startDate=1800-1-1&endDate={TODAY}&format=csv", headers=headers)
+    if response.text.__sizeof__() < MIN_SIZE:
+        log_message(f"{response.text}")
+        return 1
+    try:
+        with open(f"{GENERATED_DATA_PATH}/{TODAY}/{ticker}.csv", 'w') as f:
+            bytes_written = f.write(response.text)
+            log_message(f"Retrieved {ticker}, sucessfully wrote {int(bytes_written/1024)}KB")
+            return 0
+    except:
+        log_message(f"{response.text}")
+        return 1
 
 running = True
 
 while running:
-    print(init)
     
     dpg.create_context()
     
@@ -417,11 +524,11 @@ while running:
         with dpg.group(horizontal=True):
             text_files = [f for f in os.listdir(os.path.join(os.getcwd(), "tickers")) if f[-4:] == ".txt"]
             dpg.add_text("Choose ticker list")
-            dpg.add_combo(text_files, fit_width=True, tag="selected_ticker")
+            dpg.add_combo(text_files, fit_width=True, tag="selected_ticker", callback = lambda : update_tickers_file(dpg.get_value("selected_ticker")))
             dpg.add_button(label="Confirm", callback=lambda : create_tickers_menu(dpg.get_value("selected_ticker")))
 
         with dpg.group(horizontal=True):
-            dpg.add_button(label="Request Data", tag="request_data_button",enabled=False)
+            dpg.add_button(label="Request Data", tag="request_data_button",enabled=False, callback=lambda : request_data(tickers_file))
         
         dpg.bind_item_theme("request_data_button", disabled_theme)
 
