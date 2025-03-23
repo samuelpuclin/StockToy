@@ -4,9 +4,7 @@ import os
 import pandas as pd
 import numpy as np
 import math
-import copy
 from datetime import datetime
-from datetime import date
 from pyautogui import size
 import random
 
@@ -86,15 +84,12 @@ def create_tickers_menu(ticker_file):
     tickers_counted = 0
     if ticker_file != "":
         dpg.hide_item("disabled_request_tooltip")
-        dpg.hide_item("disabled_check_tooltip")
         with open(os.path.join("tickers", ticker_file), "r") as f:
             lines = [line.rstrip() for line in f]
             if len(lines) >= 1:
                 dpg.configure_item("request_data_button", enabled=True)
-                dpg.configure_item("check_data_button", enabled=True)
             else:
                 dpg.configure_item("request_data_button", enabled=False)
-                dpg.configure_item("check_data_button", enabled=False)
 
         dpg.delete_item("ticker_checkboxes")
         dpg.add_group(parent="ticker_window", tag="ticker_checkboxes")
@@ -435,16 +430,12 @@ while running:
 
         with dpg.group(horizontal=True):
             dpg.add_button(label="Request Data", tag="request_data_button",enabled=False)
-            dpg.add_button(label="Check Data", tag="check_data_button",enabled=False, callback=lambda: check_ticker_status())
         
         dpg.bind_item_theme("request_data_button", disabled_theme)
-        dpg.bind_item_theme("check_data_button", disabled_theme)
 
         with dpg.tooltip("request_data_button", tag = "disabled_request_tooltip"):
             dpg.add_text("You must select a ticker list before requesting data")
 
-        with dpg.tooltip("check_data_button", tag = "disabled_check_tooltip"):
-            dpg.add_text("You must select a ticker list before checking data")
         dpg.add_separator()
 
     with dpg.window(pos=[WIDTH/2, HEIGHT/2], show=False, tag="save_ini_popup"):
