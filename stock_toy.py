@@ -527,7 +527,7 @@ while running:
         with dpg.group(tag="metrics_settings", enabled=False):
             dpg.add_text("Metrics")
             dpg.add_separator()
-            dpg.add_button(label="Calculated metrics")
+            dpg.add_button(label="Calculate metrics")
             dpg.add_checkbox(label="temp")
             dpg.add_checkbox(label="temp")
             dpg.add_checkbox(label="temp")
